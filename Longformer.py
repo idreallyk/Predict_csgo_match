@@ -1,11 +1,17 @@
-import torch
+from huggingface_hub import login
+login() #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
+import os ### pip install pyarrow multiprocess aiohttp xxhash accelerate
+### pip install huggingface_hub torch transformers pandas
+os.environ["CUDA_VISIBLE_DEVICES"] = "0,1"
+os.environ["PYTORCH_CUDA_ALLOC_CONF"] = "max_split_size_mb:128"
+import torch ### source /etc/network_turbo
 from transformers import LongformerForSequenceClassification, LongformerTokenizer, Trainer, TrainingArguments,AutoTokenizer
 from datasets import load_dataset, load_metric ### pip install --no-deps datasets==1.18.3
 from sklearn.model_selection import train_test_split
 import pandas as pd
 # Load model directly
 from transformers import AutoModel
-
+import numpy as np
 df = pd.read_json('output.json', lines=True)
 df1 = df[df['content'] != '']
 
@@ -64,7 +70,7 @@ test_dataset = CustomDataset(test_encodings)
 # 设置训练参数
 training_args = TrainingArguments(
     output_dir='./results',
-    num_train_epochs=3,
+    num_train_epochs=1,
     per_device_train_batch_size=8,
     per_device_eval_batch_size=8,
     warmup_steps=500,
@@ -75,14 +81,20 @@ training_args = TrainingArguments(
 )
  
 # 加载Longformer模型并设置为二分类任务
-# model = LongformerForSequenceClassification.from_pretrained('allenai/longformer-base-4096', num_labels=2)
-model = AutoModel.from_pretrained("allenai/longformer-base-4096",num_labels = 2)
+# model = LongformerForSequenceClassification.from_pretrained('longformer-base-4096', num_labels=2)
+model = LongformerForSequenceClassification.from_pretrained("allenai/longformer-base-4096", num_labels=2)
+# model = AutoModel.from_pretrained("allenai/longformer-base-4096",num_labels = 2)
  
 # 定义计算评估指标的函数
 metric = load_metric("accuracy")
  
 def compute_metrics(p):
-    preds = torch.argmax(p.predictions, axis=1)
+    if isinstance(p.predictions, np.ndarray):
+        predictions_tensor = torch.tensor(p.predictions)
+    else:
+        predictions_tensor = p.predictions
+ 
+    preds = torch.argmax(predictions_tensor, axis=1)
     return metric.compute(predictions=preds, references=p.label_ids)
  
 # 实例化Trainer
